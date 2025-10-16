@@ -86,7 +86,7 @@ An integrated creator dashboard that:
 - **F1.2** System must request and store necessary API scopes:
   - `youtube.readonly` - Read channel and video data
   - `youtube.upload` - Upload videos
-  - `youtube.force-ssl` - Read analytics data
+  - `https://www.googleapis.com/auth/yt-analytics.readonly` - Read analytics data
 - **F1.3** Display connected channel name, thumbnail, and subscriber count
 - **F1.4** Allow users to disconnect and reconnect their channel
 - **F1.5** Handle token refresh automatically when access token expires
@@ -274,15 +274,15 @@ An integrated creator dashboard that:
 - **HTTP Client:** Axios
 
 #### Backend
-- **Runtime:** Node.js 18+ LTS
+- **Runtime:** Node.js 20+ LTS
 - **Framework:** Express.js or Fastify
 - **Language:** TypeScript
 - **API Documentation:** OpenAPI 3.0 (Swagger)
 - **Authentication:** Passport.js with OAuth2 strategy
 
 #### Database
-- **Primary Database:** PostgreSQL 14+
-- **Caching Layer:** Redis 7+ (for analytics caching, session storage)
+- **Primary Database:** PostgreSQL 15+
+- **Caching Layer:** Redis 7.2+ (for analytics caching, session storage)
 - **ORM:** Prisma or TypeORM
 
 #### External APIs
@@ -439,10 +439,10 @@ CREATE TABLE channel_analytics (
 - `channels.list` - Get channel metadata
 
 **Quota Management:**
-- Daily quota limit: 10,000 units
+- Daily quota limit: 10,000 units (default, can be increased via Google Cloud Console)
 - Upload operation: ~1,600 units per video
 - Analytics query: 1 unit per query
-- Strategy: Cache analytics data, implement rate limiting
+- Strategy: Cache analytics data, implement rate limiting, request quota increase for production
 
 ---
 
@@ -874,6 +874,7 @@ CREATE TABLE channel_analytics (
 - [YouTube API Quota Calculator](https://developers.google.com/youtube/v3/determine_quota_cost)
 
 ### Appendix C: Revision History
+
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | Oct 2025 | Product Team | Initial PRD draft for MVP |
