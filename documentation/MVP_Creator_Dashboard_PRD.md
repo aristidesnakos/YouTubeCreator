@@ -238,29 +238,37 @@ An integrated creator dashboard that:
        │
        │ HTTPS/REST
        │
-┌──────▼──────┐
-│   API       │
-│  Gateway    │
-│ (Node.js)   │
-└──────┬──────┘
+┌──────▼──────────────────────────────────┐
+│         Supabase Backend                 │
+│  ┌────────────────────────────────┐     │
+│  │   Supabase Auth (OAuth)        │     │
+│  └────────────────────────────────┘     │
+│  ┌────────────────────────────────┐     │
+│  │   PostgreSQL Database          │     │
+│  │   - Users                      │     │
+│  │   - OAuth tokens               │     │
+│  │   - Content pillars            │     │
+│  │   - Videos                     │     │
+│  │   - Analytics cache            │     │
+│  └────────────────────────────────┘     │
+│  ┌────────────────────────────────┐     │
+│  │   Edge Functions               │     │
+│  │   - Video upload handler       │     │
+│  │   - Analytics sync             │     │
+│  └────────────────────────────────┘     │
+│  ┌────────────────────────────────┐     │
+│  │   Supabase Storage             │     │
+│  │   - Temporary uploads          │     │
+│  └────────────────────────────────┘     │
+└──────┬───────────────────────────────────┘
        │
-       ├──────────────┬──────────────┐
-       │              │              │
-┌──────▼──────┐ ┌────▼─────┐ ┌──────▼──────┐
-│   Auth      │ │ YouTube  │ │   Data      │
-│  Service    │ │   API    │ │  Service    │
-│             │ │   v3     │ │             │
-└──────┬──────┘ └──────────┘ └──────┬──────┘
-       │                            │
-       │                            │
-┌──────▼────────────────────────────▼──────┐
-│         Database (PostgreSQL)             │
-│  - Users                                  │
-│  - OAuth tokens (encrypted)               │
-│  - Content pillars                        │
-│  - Video metadata & pillar assignments    │
-│  - Cached analytics                       │
-└───────────────────────────────────────────┘
+       │ External API
+       │
+┌──────▼──────┐
+│  YouTube    │
+│  Data API   │
+│     v3      │
+└─────────────┘
 ```
 
 ### 5.2 Technology Stack
@@ -271,155 +279,232 @@ An integrated creator dashboard that:
 - **UI Library:** Material-UI (MUI) or Tailwind CSS + Headless UI
 - **File Upload:** Resumable.js for chunked uploads
 - **Charts:** Chart.js or Recharts for analytics visualization
-- **HTTP Client:** Axios
+- **HTTP Client:** Supabase JavaScript Client
 
-#### Backend
-- **Runtime:** Node.js 20+ LTS
-- **Framework:** Express.js or Fastify
-- **Language:** TypeScript
-- **API Documentation:** OpenAPI 3.0 (Swagger)
-- **Authentication:** Passport.js with OAuth2 strategy
-
-#### Database
-- **Primary Database:** PostgreSQL 15+
-- **Caching Layer:** Redis 7.2+ (for analytics caching, session storage)
-- **ORM:** Prisma or TypeORM
+#### Backend (Supabase)
+- **Platform:** Supabase (Backend-as-a-Service)
+- **Database:** PostgreSQL (built into Supabase)
+- **Authentication:** Supabase Auth with OAuth providers (Google for YouTube)
+- **API:** Auto-generated REST API from Supabase
+- **Realtime:** Supabase Realtime for live updates (optional)
+- **Edge Functions:** Supabase Edge Functions (Deno runtime) for:
+  - YouTube API integration logic
+  - Video upload orchestration
+  - Analytics data fetching and caching
+  - Custom business logic
+- **Storage:** Supabase Storage for temporary file handling (if needed)
 
 #### External APIs
 - **YouTube Data API v3:** For video uploads, metadata, and analytics
-- **OAuth 2.0:** Google OAuth for YouTube authentication
+- **OAuth 2.0:** Google OAuth for YouTube authentication (via Supabase Auth)
 
 #### Infrastructure & DevOps
-- **Hosting:** AWS, Google Cloud Platform, or Vercel (frontend)
-- **Container:** Docker
-- **Reverse Proxy:** Nginx
-- **CDN:** Cloudflare or AWS CloudFront
+- **Hosting:** Vercel, Netlify, or Cloudflare Pages (frontend)
+- **Backend Hosting:** Supabase Cloud (managed infrastructure)
+- **CDN:** Built into hosting platform or Cloudflare
 - **CI/CD:** GitHub Actions
-- **Monitoring:** Sentry (error tracking), DataDog or New Relic (performance)
+- **Monitoring:** Sentry (error tracking), Supabase Dashboard (backend monitoring)
 
 ### 5.3 Database Schema (MVP)
 
+**Note:** Supabase uses PostgreSQL with built-in support for Row Level Security (RLS), which should be enabled for all tables to ensure users can only access their own data.
+
 #### Table: users
 ```sql
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- Note: Supabase Auth creates auth.users table automatically
+-- This is a public profile table that extends auth.users
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email VARCHAR(255) UNIQUE NOT NULL,
   display_name VARCHAR(100),
   youtube_channel_id VARCHAR(255) UNIQUE,
   youtube_channel_name VARCHAR(255),
   youtube_channel_thumbnail TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only view and edit their own profile
+CREATE POLICY "Users can view own profile" ON public.profiles
+  FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id);
 ```
 
 #### Table: oauth_tokens
 ```sql
-CREATE TABLE oauth_tokens (
+-- Store YouTube OAuth tokens
+-- Note: Supabase Auth handles general OAuth, but YouTube tokens need custom storage
+CREATE TABLE public.oauth_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  access_token TEXT NOT NULL, -- encrypted
-  refresh_token TEXT NOT NULL, -- encrypted
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) DEFAULT 'youtube' NOT NULL,
+  access_token TEXT NOT NULL, -- encrypt using Supabase Vault or pgcrypto
+  refresh_token TEXT NOT NULL, -- encrypt using Supabase Vault or pgcrypto
   token_type VARCHAR(50),
-  expiry_date TIMESTAMP,
+  expiry_date TIMESTAMP WITH TIME ZONE,
   scope TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.oauth_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only access their own tokens
+CREATE POLICY "Users can manage own tokens" ON public.oauth_tokens
+  USING (auth.uid() = user_id);
 ```
 
 #### Table: content_pillars
 ```sql
-CREATE TABLE content_pillars (
+CREATE TABLE public.content_pillars (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   name VARCHAR(50) NOT NULL,
   description VARCHAR(200),
   color_code VARCHAR(7), -- hex color
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, name)
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.content_pillars ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can manage their own content pillars
+CREATE POLICY "Users can manage own pillars" ON public.content_pillars
+  USING (auth.uid() = user_id);
 ```
 
 #### Table: videos
 ```sql
-CREATE TABLE videos (
+CREATE TABLE public.videos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   youtube_video_id VARCHAR(255) UNIQUE NOT NULL,
-  content_pillar_id UUID REFERENCES content_pillars(id) ON DELETE SET NULL,
+  content_pillar_id UUID REFERENCES public.content_pillars(id) ON DELETE SET NULL,
   title VARCHAR(100),
   description TEXT,
-  published_at TIMESTAMP,
+  published_at TIMESTAMP WITH TIME ZONE,
   thumbnail_url TEXT,
   privacy_status VARCHAR(20),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.videos ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can manage their own videos
+CREATE POLICY "Users can manage own videos" ON public.videos
+  USING (auth.uid() = user_id);
+
+-- Create index for faster queries
+CREATE INDEX idx_videos_user_id ON public.videos(user_id);
+CREATE INDEX idx_videos_content_pillar_id ON public.videos(content_pillar_id);
 ```
 
 #### Table: video_analytics
 ```sql
-CREATE TABLE video_analytics (
+CREATE TABLE public.video_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  video_id UUID REFERENCES videos(id) ON DELETE CASCADE,
+  video_id UUID REFERENCES public.videos(id) ON DELETE CASCADE,
   views BIGINT DEFAULT 0,
   watch_time_minutes BIGINT DEFAULT 0,
   average_view_duration_seconds INT DEFAULT 0,
   likes INT DEFAULT 0,
   comments INT DEFAULT 0,
   snapshot_date DATE NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(video_id, snapshot_date)
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.video_analytics ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view analytics for their own videos
+CREATE POLICY "Users can view own video analytics" ON public.video_analytics
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.videos 
+      WHERE videos.id = video_analytics.video_id 
+      AND videos.user_id = auth.uid()
+    )
+  );
+
+-- Create index for faster queries
+CREATE INDEX idx_video_analytics_video_id ON public.video_analytics(video_id);
+CREATE INDEX idx_video_analytics_snapshot_date ON public.video_analytics(snapshot_date);
 ```
 
 #### Table: channel_analytics
 ```sql
-CREATE TABLE channel_analytics (
+CREATE TABLE public.channel_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   subscribers INT DEFAULT 0,
   total_views BIGINT DEFAULT 0,
   total_watch_time_minutes BIGINT DEFAULT 0,
   snapshot_date DATE NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, snapshot_date)
 );
+
+-- Enable Row Level Security
+ALTER TABLE public.channel_analytics ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view their own channel analytics
+CREATE POLICY "Users can view own channel analytics" ON public.channel_analytics
+  USING (auth.uid() = user_id);
+
+-- Create index for faster queries
+CREATE INDEX idx_channel_analytics_user_id ON public.channel_analytics(user_id);
+CREATE INDEX idx_channel_analytics_snapshot_date ON public.channel_analytics(snapshot_date);
 ```
 
-### 5.4 API Endpoints
+### 5.4 API Architecture with Supabase
 
-#### Authentication
-- `POST /api/auth/google` - Initiate Google OAuth flow
-- `GET /api/auth/google/callback` - OAuth callback handler
-- `POST /api/auth/logout` - Logout and revoke tokens
-- `GET /api/auth/status` - Check authentication status
+#### Supabase Auto-Generated REST API
+Supabase automatically generates a RESTful API for database tables. Access patterns:
 
-#### Users
-- `GET /api/user/profile` - Get current user profile
-- `GET /api/user/channel` - Get connected YouTube channel info
+**Database Tables (via Supabase REST API):**
+- `GET /rest/v1/profiles` - Get user profile (filtered by RLS)
+- `PATCH /rest/v1/profiles?id=eq.{id}` - Update profile
+- `GET /rest/v1/content_pillars` - List content pillars (filtered by RLS)
+- `POST /rest/v1/content_pillars` - Create content pillar
+- `PATCH /rest/v1/content_pillars?id=eq.{id}` - Update content pillar
+- `DELETE /rest/v1/content_pillars?id=eq.{id}` - Delete content pillar
+- `GET /rest/v1/videos` - List videos with filters
+- `POST /rest/v1/videos` - Create video record
+- `PATCH /rest/v1/videos?id=eq.{id}` - Update video
+- `GET /rest/v1/video_analytics` - Get video analytics
+- `GET /rest/v1/channel_analytics` - Get channel analytics
 
-#### Videos
-- `POST /api/videos/upload` - Upload video to YouTube
-- `GET /api/videos` - List user's videos (with filters, pagination)
-- `GET /api/videos/:id` - Get video details
-- `PATCH /api/videos/:id` - Update video (content pillar assignment)
-- `DELETE /api/videos/:id` - Delete video from YouTube
+#### Supabase Auth Endpoints
+- `POST /auth/v1/signup` - User registration
+- `POST /auth/v1/token?grant_type=password` - Login
+- `POST /auth/v1/logout` - Logout
+- `GET /auth/v1/user` - Get current user
 
-#### Content Pillars
-- `GET /api/content-pillars` - List user's content pillars
-- `POST /api/content-pillars` - Create new content pillar
-- `GET /api/content-pillars/:id` - Get content pillar details
-- `PATCH /api/content-pillars/:id` - Update content pillar
-- `DELETE /api/content-pillars/:id` - Delete content pillar
+#### Custom Supabase Edge Functions
+For complex operations that require YouTube API integration:
 
-#### Analytics
-- `GET /api/analytics/channel` - Get channel-level analytics
-- `GET /api/analytics/videos/:id` - Get video-specific analytics
-- `GET /api/analytics/content-pillars` - Get analytics grouped by content pillar
-- `POST /api/analytics/refresh` - Trigger manual analytics refresh
+- `POST /functions/v1/youtube-oauth` - Initiate YouTube OAuth flow and store tokens
+- `POST /functions/v1/youtube-upload` - Handle video upload to YouTube
+  - Accepts video file metadata
+  - Uploads to YouTube via API
+  - Stores video record in database
+- `POST /functions/v1/youtube-sync-analytics` - Fetch and cache analytics from YouTube
+  - Called on-demand or via scheduled cron
+  - Updates video_analytics and channel_analytics tables
+- `GET /functions/v1/youtube-channel-info` - Get connected YouTube channel details
+- `POST /functions/v1/youtube-refresh-token` - Refresh expired YouTube OAuth tokens
+
+**Note:** Edge Functions are written in TypeScript/Deno and deployed to Supabase Edge Runtime.
 
 ### 5.5 Third-Party Integration: YouTube Data API v3
 
@@ -777,8 +862,8 @@ CREATE TABLE channel_analytics (
 - **YouTube Data API v3:** Must remain stable and available
 - **YouTube Analytics API:** Required for metrics
 - **Google OAuth 2.0:** Required for authentication
-- **Cloud Infrastructure:** AWS/GCP uptime and performance
-- **Third-party libraries:** React, Node.js, PostgreSQL continued support
+- **Supabase Platform:** Managed backend infrastructure (database, auth, storage, edge functions)
+- **Third-party libraries:** React, Supabase JavaScript Client, TypeScript continued support
 
 ### 10.2 Assumptions
 - Users have existing YouTube channels with upload permissions
