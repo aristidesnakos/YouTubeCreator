@@ -1,9 +1,42 @@
 # Product Requirements Document (PRD)
 ## MVP Creator Dashboard for YouTube Channel Management
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Last Updated:** October 2025  
-**Status:** Draft
+**Status:** Draft - Scope Reduced for True MVP
+
+---
+
+## MVP Scope Philosophy
+
+This PRD has been critically evaluated to ensure **true MVP scope**. The following principles guide our implementation:
+
+### What We're Building (MVP Core)
+- ✅ YouTube channel connection via OAuth
+- ✅ Direct video upload to YouTube from browser
+- ✅ Simple content pillar creation and assignment (max 10 pillars)
+- ✅ Basic analytics display (views, subscribers, watch time)
+- ✅ Video library with content pillar filtering
+
+### What We're NOT Building (Post-MVP)
+- ❌ No Edge Functions or Deno runtime (frontend calls YouTube API directly)
+- ❌ No analytics caching (live data from YouTube API only)
+- ❌ No thumbnail uploads (use YouTube's auto-generated)
+- ❌ No video scheduling (direct publish only)
+- ❌ No playlist assignment
+- ❌ No auto-refresh (manual refresh only)
+- ❌ No complex time range filters
+- ❌ No advanced sorting options
+- ❌ No Supabase Storage (direct upload to YouTube)
+
+### Technical Simplifications
+- Frontend: React + Tailwind (no heavy UI libraries)
+- State: React Query (simpler than Redux)
+- Backend: Supabase for auth + database only (no server-side code)
+- Database: 4 simple tables (profiles, oauth_tokens, content_pillars, videos)
+- APIs: Frontend → YouTube API directly (no middleware)
+
+**Result:** Faster development, lower costs, easier to maintain, validates core value proposition.
 
 ---
 
@@ -102,18 +135,17 @@ An integrated creator dashboard that:
 - **F2.3** Required metadata fields:
   - Title (max 100 characters)
   - Description (max 5,000 characters)
-  - Tags (max 500 characters total)
-  - Category (dropdown from YouTube categories)
   - Privacy status (Public, Unlisted, Private)
 - **F2.4** Optional metadata fields:
-  - Thumbnail upload (2MB max, 1280x720 recommended)
-  - Playlist assignment
-  - Publish time scheduling
-- **F2.5** Display upload progress with percentage and estimated time
+  - Tags (max 500 characters total)
+  - Category (dropdown from YouTube categories)
+- **F2.5** Display upload progress with percentage
 - **F2.6** Show upload success/failure notifications
 - **F2.7** Assign video to content pillar during upload
 
 **Priority:** P0 (Critical)
+
+**MVP Note:** Direct browser upload to YouTube API. No thumbnail upload, playlist assignment, or scheduling in MVP.
 
 #### Feature 3: Content Pillar Management
 **Description:** Create and manage content pillars for video categorization
@@ -122,47 +154,38 @@ An integrated creator dashboard that:
 - **F3.1** Users can create custom content pillars (e.g., "Tutorials", "Reviews", "Vlogs")
 - **F3.2** Each content pillar must have:
   - Name (required, max 50 characters)
-  - Description (optional, max 200 characters)
   - Color code (for visual differentiation)
 - **F3.3** Users can edit and delete content pillars
 - **F3.4** Users can assign/reassign videos to content pillars
 - **F3.5** Display content pillar tags on video cards
 - **F3.6** Filter videos by content pillar
-- **F3.7** Limit: 20 content pillars per user (MVP constraint)
+- **F3.7** Limit: 10 content pillars per user (MVP constraint)
 
 **Priority:** P0 (Critical)
+
+**MVP Note:** Removed description field to simplify. Reduced limit from 20 to 10 pillars.
 
 #### Feature 4: Analytics Dashboard
 **Description:** Display key YouTube analytics metrics
 
 **Requirements:**
 - **F4.1** Display channel-level metrics:
+  - Total subscribers (current)
   - Total views (lifetime)
-  - Total subscribers
-  - Subscriber growth (past 7, 28, 90 days)
-  - Total watch time hours (past 28 days)
-  - Average view duration
+  - Subscriber change (last 28 days)
 - **F4.2** Display video-level metrics:
   - Views per video
-  - Watch time per video
-  - Average view duration per video
-  - Engagement rate (likes + comments / views)
   - Publish date
+  - Watch time per video
 - **F4.3** Display metrics by content pillar:
   - Total views by pillar
-  - Average views per video by pillar
-  - Watch time by pillar
   - Video count by pillar
-- **F4.4** Time range filters:
-  - Last 7 days
-  - Last 28 days (default)
-  - Last 90 days
-  - Lifetime
-- **F4.5** Auto-refresh analytics data (every 6 hours)
-- **F4.6** Manual refresh button for on-demand updates
-- **F4.7** Display last updated timestamp
+- **F4.4** Manual refresh button to update analytics
+- **F4.5** Display last updated timestamp
 
 **Priority:** P0 (Critical)
+
+**MVP Note:** Simplified to essential metrics only. No time range filters, no auto-refresh, no engagement rate calculations. Data fetched on-demand only.
 
 #### Feature 5: Video Library
 **Description:** Browse and manage uploaded videos
@@ -174,23 +197,17 @@ An integrated creator dashboard that:
   - Publish date
   - View count
   - Content pillar tag
-  - Status (Public/Unlisted/Private)
-- **F5.2** Sort options:
-  - Upload date (newest/oldest)
-  - View count (high/low)
-  - Title (A-Z)
-- **F5.3** Filter options:
-  - Content pillar
-  - Privacy status
-  - Date range
+- **F5.2** Sort by upload date (newest first)
+- **F5.3** Filter by content pillar
 - **F5.4** Search videos by title
 - **F5.5** Pagination (20 videos per page)
 - **F5.6** Quick actions:
   - View on YouTube (external link)
   - Edit content pillar assignment
-  - View detailed analytics
 
 **Priority:** P0 (Critical)
+
+**MVP Note:** Simplified to single sort option and basic filtering. Removed privacy status display and detailed analytics view.
 
 ### 4.2 Non-Functional Requirements
 
@@ -236,92 +253,74 @@ An integrated creator dashboard that:
 │  (React.js) │
 └──────┬──────┘
        │
-       │ HTTPS/REST
-       │
-┌──────▼──────────────────────────────────┐
-│         Supabase Backend                 │
-│  ┌────────────────────────────────┐     │
-│  │   Supabase Auth (OAuth)        │     │
-│  └────────────────────────────────┘     │
-│  ┌────────────────────────────────┐     │
-│  │   PostgreSQL Database          │     │
-│  │   - Users                      │     │
-│  │   - OAuth tokens               │     │
-│  │   - Content pillars            │     │
-│  │   - Videos                     │     │
-│  │   - Analytics cache            │     │
-│  └────────────────────────────────┘     │
-│  ┌────────────────────────────────┐     │
-│  │   Edge Functions               │     │
-│  │   - Video upload handler       │     │
-│  │   - Analytics sync             │     │
-│  └────────────────────────────────┘     │
-│  ┌────────────────────────────────┐     │
-│  │   Supabase Storage             │     │
-│  │   - Temporary uploads          │     │
-│  └────────────────────────────────┘     │
-└──────┬───────────────────────────────────┘
-       │
-       │ External API
-       │
-┌──────▼──────┐
-│  YouTube    │
-│  Data API   │
-│     v3      │
-└─────────────┘
+       ├────────────────┬──────────────────┐
+       │                │                  │
+       │ REST           │ REST             │ Direct
+       │                │                  │
+┌──────▼──────┐  ┌──────▼──────────┐  ┌──▼────────┐
+│  Supabase   │  │   Supabase      │  │ YouTube   │
+│    Auth     │  │   Database      │  │ Data API  │
+│  (OAuth)    │  │  (PostgreSQL)   │  │    v3     │
+└─────────────┘  └─────────────────┘  └───────────┘
+                        │
+                        │
+                 ┌──────▼──────┐
+                 │   Tables:   │
+                 │  - profiles │
+                 │  - pillars  │
+                 │  - videos   │
+                 └─────────────┘
 ```
+
+**MVP Simplification:**
+- Frontend calls YouTube API directly (no Edge Functions needed)
+- Supabase only used for data storage and authentication
+- OAuth tokens stored securely in Supabase database
+- Analytics fetched on-demand from YouTube API by frontend
 
 ### 5.2 Technology Stack
 
 #### Frontend
 - **Framework:** React.js 18+ with TypeScript
-- **State Management:** Redux Toolkit or React Query
-- **UI Library:** Material-UI (MUI) or Tailwind CSS + Headless UI
-- **File Upload:** Resumable.js for chunked uploads
-- **Charts:** Chart.js or Recharts for analytics visualization
-- **HTTP Client:** Supabase JavaScript Client
+- **State Management:** React Query (simpler than Redux for MVP)
+- **UI Library:** Tailwind CSS with Headless UI (lighter than Material-UI)
+- **File Upload:** Native HTML5 file input with YouTube's resumable upload protocol
+- **Charts:** Recharts for analytics visualization (lighter bundle)
+- **HTTP Client:** Supabase JavaScript Client + Axios for YouTube API
 
-#### Backend (Supabase)
+#### Backend (Supabase) - Simplified for MVP
 - **Platform:** Supabase (Backend-as-a-Service)
 - **Database:** PostgreSQL (built into Supabase)
-- **Authentication:** Supabase Auth with OAuth providers (Google for YouTube)
-- **API:** Auto-generated REST API from Supabase
-- **Realtime:** Supabase Realtime for live updates (optional)
-- **Edge Functions:** Supabase Edge Functions (Deno runtime) for:
-  - YouTube API integration logic
-  - Video upload orchestration
-  - Analytics data fetching and caching
-  - Custom business logic
-- **Storage:** Supabase Storage for temporary file handling (if needed)
+- **Authentication:** Supabase Auth with Google OAuth provider
+- **API:** Auto-generated REST API from Supabase (for internal data only)
+- **No Edge Functions needed** - Frontend calls YouTube API directly
+- **No Storage needed** - Videos upload directly to YouTube
 
 #### External APIs
-- **YouTube Data API v3:** For video uploads, metadata, and analytics
-- **OAuth 2.0:** Google OAuth for YouTube authentication (via Supabase Auth)
+- **YouTube Data API v3:** Called directly from frontend for uploads and metadata
+- **YouTube Analytics API:** Called directly from frontend for metrics
+- **OAuth 2.0:** Google OAuth managed via Supabase Auth
 
 #### Infrastructure & DevOps
-- **Hosting:** Vercel, Netlify, or Cloudflare Pages (frontend)
+- **Hosting:** Vercel or Netlify (frontend only)
 - **Backend Hosting:** Supabase Cloud (managed infrastructure)
-- **CDN:** Built into hosting platform or Cloudflare
 - **CI/CD:** GitHub Actions
-- **Monitoring:** Sentry (error tracking), Supabase Dashboard (backend monitoring)
+- **Monitoring:** Browser console + Supabase Dashboard (MVP level)
 
 ### 5.3 Database Schema (MVP)
 
 **Note:** Supabase uses PostgreSQL with built-in support for Row Level Security (RLS), which should be enabled for all tables to ensure users can only access their own data.
 
-#### Table: users
+#### Table: profiles
 ```sql
 -- Note: Supabase Auth creates auth.users table automatically
 -- This is a public profile table that extends auth.users
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email VARCHAR(255) UNIQUE NOT NULL,
-  display_name VARCHAR(100),
   youtube_channel_id VARCHAR(255) UNIQUE,
   youtube_channel_name VARCHAR(255),
-  youtube_channel_thumbnail TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable Row Level Security
@@ -334,6 +333,8 @@ CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id);
 ```
 
+**MVP Note:** Removed display_name, youtube_channel_thumbnail, and updated_at to simplify.
+
 #### Table: oauth_tokens
 ```sql
 -- Store YouTube OAuth tokens
@@ -341,14 +342,10 @@ CREATE POLICY "Users can update own profile" ON public.profiles
 CREATE TABLE public.oauth_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider VARCHAR(50) DEFAULT 'youtube' NOT NULL,
-  access_token TEXT NOT NULL, -- encrypt using Supabase Vault or pgcrypto
-  refresh_token TEXT NOT NULL, -- encrypt using Supabase Vault or pgcrypto
-  token_type VARCHAR(50),
+  access_token TEXT NOT NULL, -- encrypt using pgcrypto
+  refresh_token TEXT NOT NULL, -- encrypt using pgcrypto
   expiry_date TIMESTAMP WITH TIME ZONE,
-  scope TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable Row Level Security
@@ -359,16 +356,16 @@ CREATE POLICY "Users can manage own tokens" ON public.oauth_tokens
   USING (auth.uid() = user_id);
 ```
 
+**MVP Note:** Removed provider, token_type, scope, and updated_at fields to simplify.
+
 #### Table: content_pillars
 ```sql
 CREATE TABLE public.content_pillars (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   name VARCHAR(50) NOT NULL,
-  description VARCHAR(200),
   color_code VARCHAR(7), -- hex color
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, name)
 );
 
@@ -380,6 +377,8 @@ CREATE POLICY "Users can manage own pillars" ON public.content_pillars
   USING (auth.uid() = user_id);
 ```
 
+**MVP Note:** Removed description and updated_at fields to simplify.
+
 #### Table: videos
 ```sql
 CREATE TABLE public.videos (
@@ -388,12 +387,8 @@ CREATE TABLE public.videos (
   youtube_video_id VARCHAR(255) UNIQUE NOT NULL,
   content_pillar_id UUID REFERENCES public.content_pillars(id) ON DELETE SET NULL,
   title VARCHAR(100),
-  description TEXT,
   published_at TIMESTAMP WITH TIME ZONE,
-  thumbnail_url TEXT,
-  privacy_status VARCHAR(20),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable Row Level Security
@@ -408,68 +403,18 @@ CREATE INDEX idx_videos_user_id ON public.videos(user_id);
 CREATE INDEX idx_videos_content_pillar_id ON public.videos(content_pillar_id);
 ```
 
-#### Table: video_analytics
-```sql
-CREATE TABLE public.video_analytics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  video_id UUID REFERENCES public.videos(id) ON DELETE CASCADE,
-  views BIGINT DEFAULT 0,
-  watch_time_minutes BIGINT DEFAULT 0,
-  average_view_duration_seconds INT DEFAULT 0,
-  likes INT DEFAULT 0,
-  comments INT DEFAULT 0,
-  snapshot_date DATE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(video_id, snapshot_date)
-);
+**MVP Note:** Removed description, thumbnail_url, privacy_status, and updated_at. Analytics fetched live from YouTube API instead of caching.
 
--- Enable Row Level Security
-ALTER TABLE public.video_analytics ENABLE ROW LEVEL SECURITY;
+**MVP Note:** Analytics tables removed. All analytics data fetched live from YouTube API on-demand.
 
--- Policy: Users can view analytics for their own videos
-CREATE POLICY "Users can view own video analytics" ON public.video_analytics
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.videos 
-      WHERE videos.id = video_analytics.video_id 
-      AND videos.user_id = auth.uid()
-    )
-  );
+### 5.4 API Architecture with Supabase - Simplified for MVP
 
--- Create index for faster queries
-CREATE INDEX idx_video_analytics_video_id ON public.video_analytics(video_id);
-CREATE INDEX idx_video_analytics_snapshot_date ON public.video_analytics(snapshot_date);
-```
+**MVP Note:** Analytics tables removed. All analytics data fetched live from YouTube API on-demand.
 
-#### Table: channel_analytics
-```sql
-CREATE TABLE public.channel_analytics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  subscribers INT DEFAULT 0,
-  total_views BIGINT DEFAULT 0,
-  total_watch_time_minutes BIGINT DEFAULT 0,
-  snapshot_date DATE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, snapshot_date)
-);
-
--- Enable Row Level Security
-ALTER TABLE public.channel_analytics ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can view their own channel analytics
-CREATE POLICY "Users can view own channel analytics" ON public.channel_analytics
-  USING (auth.uid() = user_id);
-
--- Create index for faster queries
-CREATE INDEX idx_channel_analytics_user_id ON public.channel_analytics(user_id);
-CREATE INDEX idx_channel_analytics_snapshot_date ON public.channel_analytics(snapshot_date);
-```
-
-### 5.4 API Architecture with Supabase
+### 5.4 API Architecture with Supabase - Simplified for MVP
 
 #### Supabase Auto-Generated REST API
-Supabase automatically generates a RESTful API for database tables. Access patterns:
+Supabase automatically generates a RESTful API for database tables:
 
 **Database Tables (via Supabase REST API):**
 - `GET /rest/v1/profiles` - Get user profile (filtered by RLS)
@@ -480,9 +425,8 @@ Supabase automatically generates a RESTful API for database tables. Access patte
 - `DELETE /rest/v1/content_pillars?id=eq.{id}` - Delete content pillar
 - `GET /rest/v1/videos` - List videos with filters
 - `POST /rest/v1/videos` - Create video record
-- `PATCH /rest/v1/videos?id=eq.{id}` - Update video
-- `GET /rest/v1/video_analytics` - Get video analytics
-- `GET /rest/v1/channel_analytics` - Get channel analytics
+- `PATCH /rest/v1/videos?id=eq.{id}` - Update video pillar assignment
+- `GET /rest/v1/oauth_tokens` - Get YouTube OAuth tokens (encrypted)
 
 #### Supabase Auth Endpoints
 - `POST /auth/v1/signup` - User registration
@@ -490,21 +434,19 @@ Supabase automatically generates a RESTful API for database tables. Access patte
 - `POST /auth/v1/logout` - Logout
 - `GET /auth/v1/user` - Get current user
 
-#### Custom Supabase Edge Functions
-For complex operations that require YouTube API integration:
+#### YouTube API (Called Directly from Frontend)
+**No Edge Functions Needed for MVP** - Frontend makes direct calls to YouTube API using stored OAuth tokens:
 
-- `POST /functions/v1/youtube-oauth` - Initiate YouTube OAuth flow and store tokens
-- `POST /functions/v1/youtube-upload` - Handle video upload to YouTube
-  - Accepts video file metadata
-  - Uploads to YouTube via API
-  - Stores video record in database
-- `POST /functions/v1/youtube-sync-analytics` - Fetch and cache analytics from YouTube
-  - Called on-demand or via scheduled cron
-  - Updates video_analytics and channel_analytics tables
-- `GET /functions/v1/youtube-channel-info` - Get connected YouTube channel details
-- `POST /functions/v1/youtube-refresh-token` - Refresh expired YouTube OAuth tokens
+- YouTube OAuth flow handled by Supabase Auth + Google provider
+- Video uploads via YouTube Data API v3 from browser
+- Analytics fetched via YouTube Analytics API from browser
+- Token refresh handled by frontend when needed
 
-**Note:** Edge Functions are written in TypeScript/Deno and deployed to Supabase Edge Runtime.
+**Benefits:**
+- Simpler architecture (no server-side code to deploy)
+- Lower latency (direct API calls)
+- Easier debugging (all logic in frontend)
+- Reduced costs (no Edge Function execution costs)
 
 ### 5.5 Third-Party Integration: YouTube Data API v3
 
@@ -652,90 +594,88 @@ For complex operations that require YouTube API integration:
 
 ---
 
-## 7. MVP Scope & Phased Approach
+## 7. MVP Scope & Phased Approach - Simplified
 
-### Phase 1: Foundation (Weeks 1-3)
+**Total Timeline: 4-6 weeks** (reduced from 10 weeks due to scope reduction)
+
+### Phase 1: Foundation (Weeks 1-2)
 **Goal:** Set up infrastructure and authentication
 
 **Deliverables:**
-- Project setup (frontend + backend + database)
-- Google OAuth integration
-- YouTube API connection
-- User account creation and profile management
-- Basic dashboard shell (no data yet)
+- Frontend setup (React + TypeScript + Tailwind)
+- Supabase project setup (auth + database)
+- Google OAuth integration via Supabase
+- Basic database tables (4 tables)
+- User profile creation
 
 **Success Criteria:**
-- Users can connect their YouTube channel
-- Channel info displays correctly
-- Authentication persists across sessions
+- Users can sign up and log in
+- Users can connect YouTube channel via OAuth
+- Channel name displays correctly
+- OAuth tokens stored securely in database
 
-### Phase 2: Core Features (Weeks 4-6)
-**Goal:** Implement content pillar and video management
+**MVP Simplification:** No Edge Functions, no Storage, direct frontend setup only.
+
+### Phase 2: Core Features (Weeks 3-4)
+**Goal:** Implement essential features
 
 **Deliverables:**
-- Content pillar CRUD operations
-- Video upload functionality
-- Video library with list view
-- Basic video metadata display
-- Assign/reassign videos to content pillars
+- Content pillar CRUD (simplified: name + color only)
+- Video upload to YouTube (direct from browser)
+- Video library display (basic list view)
+- Assign videos to content pillars
+- Basic filtering by pillar
 
 **Success Criteria:**
-- Users can create up to 20 content pillars
-- Users can upload videos with metadata
-- Videos appear in library immediately after upload
-- Users can filter videos by content pillar
+- Users can create up to 10 content pillars
+- Users can upload videos directly to YouTube
+- Videos appear in library after upload
+- Users can assign/filter videos by pillar
 
-### Phase 3: Analytics Integration (Weeks 7-8)
-**Goal:** Fetch and display YouTube analytics
+**MVP Simplification:** No thumbnail upload, no scheduling, no playlist assignment, limit to 10 pillars.
+
+### Phase 3: Analytics & Polish (Weeks 5-6)
+**Goal:** Add analytics and launch-ready polish
 
 **Deliverables:**
-- YouTube Analytics API integration
-- Channel-level metrics display
-- Video-level metrics display
-- Content pillar aggregated metrics
-- Time range filters (7d, 28d, 90d, lifetime)
-- Analytics caching mechanism
+- Fetch analytics from YouTube API (on-demand only)
+- Display channel metrics (subscribers, views, watch time)
+- Display video metrics (views, watch time per video)
+- Display pillar metrics (views and count per pillar)
+- Manual refresh button
+- Basic error handling and loading states
+- Responsive design
 
 **Success Criteria:**
-- Dashboard shows subscriber count, views, watch time
-- Subscriber growth chart displays correctly
-- Content pillar performance cards show accurate data
-- Analytics refresh every 6 hours automatically
+- Dashboard shows current subscriber count and views
+- Analytics update when user clicks refresh
+- Content pillar cards show view totals
+- Works on desktop and mobile
+- 3-5 beta users successfully onboard
 
-### Phase 4: Polish & Launch (Weeks 9-10)
-**Goal:** Refine UX and prepare for launch
-
-**Deliverables:**
-- Responsive design refinements
-- Error handling and user feedback
-- Loading states and skeleton screens
-- Performance optimization
-- Security audit
-- User testing and bug fixes
-- Documentation (user guide, API docs)
-
-**Success Criteria:**
-- All core features work reliably
-- Page load times meet performance requirements
-- Mobile-friendly on common devices
-- Zero critical security vulnerabilities
-- 5 beta users successfully onboarded
+**MVP Simplification:** No caching, no auto-refresh, no time filters, no charts (just numbers), live data only.
 
 ### Post-MVP Features (Future Phases)
-- **Phase 5:** Advanced Analytics
-  - Traffic sources breakdown
-  - Engagement metrics (CTR, retention)
-  - Audience demographics
-  - Custom date ranges
-- **Phase 6:** Collaboration Features
-  - Team member invites
-  - Role-based permissions
-  - Comment threads on videos
-- **Phase 7:** Content Planning
-  - Content calendar
-  - Upload scheduling
-  - Video templates
-- **Phase 8:** AI-Powered Insights
+Deferred to validate core value proposition first:
+
+- **Phase 4:** Analytics Enhancement
+  - Analytics caching for performance
+  - Time range filters (7d, 28d, 90d)
+  - Charts and visualizations
+  - Engagement metrics (likes, comments)
+  
+- **Phase 5:** Upload Enhancement
+  - Thumbnail upload
+  - Video scheduling
+  - Playlist assignment
+  - Batch uploads
+
+- **Phase 6:** Advanced Features
+  - Auto-refresh analytics
+  - Multiple sort options
+  - Advanced filters
+  - Content pillar descriptions
+  - Team collaboration
   - Title/description optimization suggestions
   - Best time to post recommendations
   - Trending topic alerts
